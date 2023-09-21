@@ -1,10 +1,9 @@
 use std::{env, os::windows::process::CommandExt};
 
-
 fn main() {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
 
-    const VC_PATH: &str = r#"C:\Program Files\Microsoft Visual Studio\2022\Community"#;
+    const VC_PATH: &str = r#"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community"#;
     let vc = if cfg!(target_arch = "x86") {
         "vcvars32.bat"
     } else if cfg!(target_arch = "x86_64") {
@@ -15,11 +14,11 @@ fn main() {
     let vcvar_bat = std::path::Path::new(VC_PATH)
         .join(r#"VC\Auxiliary\Build"#)
         .join(vc);
-    
+
     // config environment by vcvars64/32.bat
     let vcvar_bat = vcvar_bat.to_str().unwrap();
     let src_path = std::path::Path::new(
-        r#"C:\Program Files (x86)\Windows Kits\10\Include\10.0.22000.0\um\WbemCli.Idl"#,
+        r#"C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\WbemCli.Idl"#,
     )
     .to_str()
     .unwrap();
@@ -45,5 +44,10 @@ fn main() {
         std::io::BufWriter::new(wbemcli_rs)
     };
 
-    let _ = winapi_tlb_bindgen::build(&out_dir.join("WbemCli.tlb"), false, wbemcli_rs).unwrap();
+    let _ = winapi_tlb_bindgen::build(&out_dir.join("WbemCli.tlb"), false, wbemcli_rs)
+        .map_err(|x| {
+            eprintln!("{}", x);
+            x
+        })
+        .unwrap();
 }
