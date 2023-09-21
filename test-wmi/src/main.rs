@@ -56,7 +56,7 @@ fn main() {
 		assert_hr!((&*namespace).ExecQuery(
 			bstr("WQL"),
 			bstr("SELECT Caption FROM Win32_OperatingSystem"),
-			wbemcli::WBEM_FLAG_FORWARD_ONLY as _,
+			wbemcli::tag_WBEM_GENERIC_FLAG_TYPE::WBEM_FLAG_FORWARD_ONLY as _,
 			std::ptr::null_mut(),
 			&mut enumerator,
 		));
@@ -64,7 +64,7 @@ fn main() {
 		// Get first row from query
 		let mut object = std::ptr::null_mut();
 		let mut num_returned = 0;
-		assert_hr!((&*enumerator).Next(wbemcli::WBEM_INFINITE as _, 1, &mut object, &mut num_returned));
+		assert_hr!((&*enumerator).Next(wbemcli::tag_WBEM_TIMEOUT_TYPE::WBEM_INFINITE as _, 1, &mut object, &mut num_returned));
 		assert_eq!(num_returned, 1);
 
 		// Get caption field from query

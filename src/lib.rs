@@ -84,16 +84,32 @@ pub fn build<W>(filename: &std::path::Path, emit_dispinterfaces: bool, mut out: 
 
 			match attributes.typekind {
 				winapi::um::oaidl::TKIND_ENUM => {
-					writeln!(out, "ENUM!{{enum {} {{", type_name)?;
+					writeln!(out, "pub enum {} {{", type_name)?;
 
+                    // C enums can have same values, while rust can't
+                    // use associated constant to impl this feature
+                    // see also https://stackoverflow.com/questions/41791969/is-there-a-way-to-create-an-alias-of-an-enum-value
+
+                    let mut mem_record=std::collections::BTreeMap::new();
+                    let mut duplicate_enums = false;
 					for member in type_info.get_vars() {
 						let member = member?;
-
-						write!(out, "    {} = ", sanitize_reserved(member.name()))?;
+                        let member_name=sanitize_reserved(member.name());
 						let value = member.value();
 						match winapi::shared::wtypes::VARENUM::from(value.n1.n2().vt) {
 							winapi::shared::wtypes::VT_I4 => {
 								let value = *value.n1.n2().n3.lVal();
+
+                                // modify for duplicate enums
+                                let s = mem_record.entry(value).or_insert((member_name.clone(), Vec::new()));
+                                s.1.push(member_name.clone());
+                                if s.1.len() > 1{
+                                    duplicate_enums = true;
+                                    continue;
+                                }
+
+						        write!(out, "    {} = ", member_name.as_str())?;
+
 								if value >= 0 {
 									writeln!(out, "{},", value)?;
 								}
@@ -103,10 +119,24 @@ pub fn build<W>(filename: &std::path::Path, emit_dispinterfaces: bool, mut out: 
 							},
 							_ => unreachable!(),
 						}
+
 					}
 
-					writeln!(out, "}}}}")?;
+					writeln!(out, "}}")?;
 					writeln!(out)?;
+                    
+                    if duplicate_enums{
+                            writeln!(out, "impl {type_name} {{")?;
+                            for (_, k) in mem_record.into_iter(){
+                                if k.1.len() > 1{
+                                    let value=k.0;
+                                    for item in &k.1[1..] {
+                                        writeln!(out, "\tpub const {item}: Self = Self::{value};")?;
+                                    }
+                                }
+                            }
+                            writeln!(out, "}}")?;
+                    }
 				},
 
 				winapi::um::oaidl::TKIND_RECORD => {
@@ -132,8 +162,7 @@ pub fn build<W>(filename: &std::path::Path, emit_dispinterfaces: bool, mut out: 
 
 						let function_name = function.name();
 
-						writeln!(out, r#"extern "system" pub fn {}("#, function_name)?;
-
+						writeln!(out, r#"extern "system" {{ fn {}("#, function_name)?;
 						for param in function.params() {
 							let param_desc = param.desc();
 							writeln!(out, "    {}: {},",
@@ -145,7 +174,7 @@ pub fn build<W>(filename: &std::path::Path, emit_dispinterfaces: bool, mut out: 
 									&mut build_result)?)?;
 						}
 
-						writeln!(out, ") -> {},", type_to_string(&function_desc.elemdescFunc.tdesc, winapi::um::oaidl::PARAMFLAG_FOUT, &type_info, &mut build_result)?)?;
+						writeln!(out, ") -> {}; }}", type_to_string(&function_desc.elemdescFunc.tdesc, winapi::um::oaidl::PARAMFLAG_FOUT, &type_info, &mut build_result)?)?;
 						writeln!(out)?;
 					}
 
